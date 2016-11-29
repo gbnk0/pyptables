@@ -2,6 +2,9 @@ import os
 import sys
 import subprocess
 
+
+default_binpath = "/sbin/iptables"
+
 def rule_to_list(rule):
     listrule = []
     if rule.chain:
@@ -53,7 +56,7 @@ def rule_to_list(rule):
 class Iptables:
 
     def __init__(self, **kwargs):
-        self.binpath = kwargs.get('binpath', '/sbin/iptables')
+        self.binpath = kwargs.get('binpath', default_binpath)
         self.rules = []
         self.chains = self.get_chains()
 
@@ -87,7 +90,7 @@ class Rule:
         self.chain = kwargs.get('chain', 'INPUT')
         self.comment = kwargs.get('comment', '')
         self.match = kwargs.get('match', '')
-        self.dports = kwargs.get('dports', 0)
+        self.dports = kwargs.get('dports', [])
         self.src = kwargs.get('src', '')
         self.dst = kwargs.get('dst', '')
         self.proto = kwargs.get('proto', '')
@@ -101,16 +104,73 @@ class Rule:
 class Chain:
 
     def __init__(self, **kwargs):
+        self.binpath = kwargs.get('binpath', default_binpath)
         self.name = kwargs.get('name', '')
+        self.rules = self.get_rules()
+
+    def get_rules(self):
+            try:
+                rules = []
+                output = subprocess.Popen([self.binpath, "-vnL", self.name],
+                                          stdout=subprocess.PIPE).communicate()[0]
+
+                for line in output.splitlines():
+                    line = line.strip()
+
+                    if not line.startswith('Chain'):
+                        if not line.startswith('pkts'):
+
+                            rule = Rule(chain=self.name,
+                                        action=line.split()[2],
+                                        proto=line.split()[3])
+
+                            linesplit = line.split()
+                            in_if = linesplit[5]
+                            out_if = linesplit[6]
+                            src = linesplit[7]
+                            dst = linesplit[8]
+
+                            if len(linesplit) >= 11:
+                                if 'multiport' in linesplit:
+                                    dports = linesplit[11]
+                                    dports = dports.split(',')
+                                    rule.dports = dports
+                            
+                            if in_if != '*':
+                                rule.in_if = in_if
+
+                            if out_if != '*':
+                                rule.out_if = out_if
+
+                            if src != '0.0.0.0/0':
+                                rule.src = src     
+
+                            if dst != '0.0.0.0/0':
+                                rule.dst = dst
+
+
+
+                            rules.append(rule)
+
+                return rules
+            except:
+                print(line)
+                raise
 
 
 if __name__ == '__main__':
-    i = Iptables()
+    # iptables = Iptables()
 
-    r = Rule(action='DROP', src='192.168.0.0/24', chain='FORWARD', dports=[80,443], proto='tcp', comment='Administration-web', in_if='eth0', out_if='eth0')
-    r.dst = '172.2.1.2/32'
-    i.add(r)
-    print(rule_to_list(r))
+    # r = Rule(action='DROP', src='192.168.0.0/24', chain='FORWARD', dports=[80,443], proto='tcp', comment='Administration-web', in_if='eth0', out_if='eth0')
+    # r.dst = '172.2.1.2/32'
+    
+    # iptables.add(r)
+    # iptables.commit()
+
+    # # Get rules
 
 
-    i.commit()
+    c = Chain(name='INPUT')
+    print(c.rules)
+    for r in c.rules:
+        print(rule_to_list(r))
