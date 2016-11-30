@@ -1,4 +1,4 @@
-from pyptables import pyptables, utils
+import pyptables
 
 if __name__ == '__main__':
     
@@ -35,7 +35,7 @@ if __name__ == '__main__':
     iptables.add(rule)
 
     """ Commit the changes """
-    # iptables.commit() # Uncomment for commit changes to your curent system
+    iptables.commit() # Uncomment for commit changes to your curent system
 
     """ Get rules in chain """
     # input_chain = pyptables.Chain(name='INPUT')
